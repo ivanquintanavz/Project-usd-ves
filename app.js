@@ -42,6 +42,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    async function fetchRates(isManual = false) {
+        const icon = fetchRatesBtn.querySelector('ion-icon');
+        icon.name = 'sync-circle';
+        fetchRatesBtn.style.animation = 'pulse 1s infinite';
+
+        try {
+            const response = await fetch('https://ve.dolarapi.com/v1/dolares');
+            const data = await response.json();
+
+            const bcvData = data.find(d => d.fuente === 'oficial');
+            const p2pData = data.find(d => d.fuente === 'paralelo'); // Usamos Paralelo como referencia de mercado libre/P2P
+
+            if (bcvData) {
+                bcvInput.value = bcvData.promedio;
+                localStorage.setItem('bcvRate', bcvData.promedio);
+            }
+            if (p2pData) {
+                p2pInput.value = p2pData.promedio;
+                localStorage.setItem('p2pRate', p2pData.promedio);
+            }
+
+            calculate();
+        } catch (error) {
+            console.error('Error fetching rates:', error);
+            if (isManual) {
+                alert('Hubo un error al descargar las tasas. Revisa tu conexión a internet.');
+            }
+        } finally {
+            icon.name = 'sync';
+            fetchRatesBtn.style.animation = 'none';
+        }
+    }
+
     // Tab Switching
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -62,37 +95,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Fetch Rates Online
-    fetchRatesBtn.addEventListener('click', async () => {
-        const icon = fetchRatesBtn.querySelector('ion-icon');
-        icon.name = 'sync-circle';
-        fetchRatesBtn.style.animation = 'pulse 1s infinite';
-
-        try {
-            const response = await fetch('https://ve.dolarapi.com/v1/dolares');
-            const data = await response.json();
-
-            const bcvData = data.find(d => d.fuente === 'oficial');
-            const p2pData = data.find(d => d.fuente === 'paralelo');
-
-            if (bcvData) {
-                bcvInput.value = bcvData.promedio;
-                localStorage.setItem('bcvRate', bcvData.promedio);
-            }
-            if (p2pData) {
-                p2pInput.value = p2pData.promedio;
-                localStorage.setItem('p2pRate', p2pData.promedio);
-            }
-
-            calculate();
-        } catch (error) {
-            console.error('Error fetching rates:', error);
-            alert('Hubo un error al intentar actualizar las tasas auto. Puedes intentarlo de nuevo o introducirlas manualmente.');
-        } finally {
-            icon.name = 'sync';
-            fetchRatesBtn.style.animation = 'none';
-        }
-    });
+    // Fetch Rates Online Manually
+    fetchRatesBtn.addEventListener('click', () => fetchRates(true));
 
     // Event Listeners for Calculation
     [bcvInput, p2pInput, amountInput].forEach(input => {
@@ -189,4 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial calculation if localstorage has values
     calculate();
+
+    // Actualizar automáticamente al abrir la app
+    fetchRates();
 });
