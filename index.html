@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Calculadora USD/VES</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <!-- Ionicons for some nice mobile icons -->
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+
+    <!-- Register Service Worker for PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('ServiceWorker registered'))
+                    .catch(err => console.log('ServiceWorker registration failed: ', err));
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="header">
+            <div class="header-titles">
+                <h1>CalcDivisas</h1>
+                <p>Venezuela</p>
+            </div>
+            <button id="theme-toggle" class="icon-btn">
+                <ion-icon name="moon"></ion-icon>
+            </button>
+        </header>
+
+        <main class="content">
+            <!-- Rates Section -->
+            <section class="card rates-card">
+                <div class="card-header" style="justify-content: space-between; display: flex;">
+                    <h2>
+                        <ion-icon name="trending-up"></ion-icon> Tasas de Cambio
+                    </h2>
+                    <button id="fetch-rates-btn" class="icon-btn" style="width: 35px; height: 35px;"
+                        title="Actualizar desde Internet">
+                        <ion-icon name="sync"></ion-icon>
+                    </button>
+                </div>
+                <div class="input-group">
+                    <label for="bcv-rate">Tasa BCV (Bs. por $)</label>
+                    <div class="input-wrapper">
+                        <span class="currency-symbol">Bs.</span>
+                        <input type="number" id="bcv-rate" placeholder="Ej: 36.50" step="0.01" inputmode="decimal">
+                    </div>
+                </div>
+                <div class="input-group mt-15">
+                    <label for="p2p-rate">Tasa P2P/Paralelo (Bs. por $)</label>
+                    <div class="input-wrapper">
+                        <span class="currency-symbol">Bs.</span>
+                        <input type="number" id="p2p-rate" placeholder="Ej: 40.00" step="0.01" inputmode="decimal">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Calculator Section -->
+            <section class="card calculator-card">
+                <div class="tabs">
+                    <button class="tab-btn active" data-type="usd-to-ves">USD a VES</button>
+                    <button class="tab-btn" data-type="ves-to-usd">VES a USD</button>
+                </div>
+
+                <div class="input-group amount-group">
+                    <label for="amount" id="amount-label">Monto en Dólares (USD)</label>
+                    <div class="input-wrapper large">
+                        <span class="currency-symbol" id="amount-symbol">$</span>
+                        <input type="number" id="amount" placeholder="0.00" step="0.01" inputmode="decimal">
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div class="results-container">
+                    <div class="result-row">
+                        <div class="result-label">BCV:</div>
+                        <div class="result-value bcv-value" id="res-bcv">0.00 Bs.</div>
+                    </div>
+                    <div class="result-row">
+                        <div class="result-label">P2P:</div>
+                        <div class="result-value p2p-value" id="res-p2p">0.00 Bs.</div>
+                    </div>
+
+                    <div class="difference-box">
+                        <div class="diff-header">
+                            <ion-icon name="swap-vertical"></ion-icon> Diferencia
+                        </div>
+                        <div class="diff-values">
+                            <div class="diff-amount" id="diff-amount">+0.00 Bs.</div>
+                            <div class="diff-percentage" id="diff-percent">0.00%</div>
+                        </div>
+                        <div class="diff-text" id="diff-text">El P2P es mayor que el BCV.</div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
