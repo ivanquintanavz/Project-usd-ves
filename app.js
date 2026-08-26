@@ -24,8 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     themeToggle.addEventListener('click', () => {
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        if (currentTheme === 'dark') {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (isDark) {
             document.documentElement.removeAttribute('data-theme');
             localStorage.setItem('appTheme', 'light');
             themeToggle.innerHTML = '<ion-icon name="moon"></ion-icon>';
@@ -36,68 +36,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function median(arr) {
-        const sorted = [...arr].sort((a, b) => a - b);
-        const mid = Math.floor(sorted.length / 2);
-        return sorted.length % 2 === 0
-            ? (sorted[mid - 1] + sorted[mid]) / 2
-            : sorted[mid];
-    }
-
-    // Obtiene la mediana del P2P de Binance filtrando anuncios accesibles para montos pequeños (≤100 USDT)
-    async function fetchBinanceP2P() {
-        const targetUrl = 'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search';
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-
-        const body = JSON.stringify({
-            fiat: 'VES',
-            page: 1,
-            rows: 50,
-            tradeType: 'SELL',
-            asset: 'USDT',
-            countries: [],
-            proMerchantAds: false,
-            shieldMerchantAds: false,
-            filterType: 'all',
-            periods: [],
-            additionalKycVerifyFilter: 0,
-            publisherType: null,
-            payTypes: [],
-            classifies: ['mass', 'profession', 'fiat_merchant']
-        });
-
-        const response = await fetch(proxyUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-requested-with': 'XMLHttpRequest'
-            },
-            body
-        });
-
-        const data = await response.json();
-        if (!data.data || data.data.length === 0) throw new Error('Sin datos Binance P2P');
-
-        // Filtrar solo anuncios donde el mínimo de orden sea ≤100 USDT
-        // minSingleTransAmount está en VES, así que dividimos por el precio para obtener USDT
-        const smallAds = data.data.filter(ad => {
-            const price = parseFloat(ad.adv.price);
-            const minVES = parseFloat(ad.adv.minSingleTransAmount);
-            const minUSDT = minVES / price;
-            return minUSDT <= 100;
-        });
-
-        const pool = smallAds.length >= 5 ? smallAds : data.data;
-        const prices = pool.map(ad => parseFloat(ad.adv.price));
-        return Math.round(median(prices) * 100) / 100;
-    }
-
-    // Obtiene solo el BCV desde DolarAPI
-    async function fetchDolarAPI() {
-        const response = await fetch('https://ve.dolarapi.com/v1/dolares');
-        const data = await response.json();
-        const bcvData = data.find(d => d.fuente === 'oficial');
-        return bcvData?.promedio ?? null;
+    function timeAgo(isoString) {
+        const diffMs = Date.now() - new Date(isoString).getTime();
+        const mins = Math.round(diffMs / 60000);
+        if (mins < 60) return `hace ${mins} min`;
+        const hrs = Math.round(diffMs / 3600000);
+        return `hace ${hrs}h`;
     }
 
     async function fetchRates(isManual = false) {
@@ -106,30 +50,27 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchRatesBtn.style.animation = 'pulse 1s infinite';
 
         try {
-            const [dolarResult, binanceResult] = await Promise.allSettled([
-                fetchDolarAPI(),
-                fetchBinanceP2P()
-            ]);
+            // rates.json lo actualiza GitHub Actions cada hora desde Binance P2P
+            const response = await fetch('./rates.json?t=' + Date.now());
+            if (!response.ok) throw new Error('rates.json no disponible');
+            const data = await response.json();
 
-            if (dolarResult.status === 'fulfilled' && dolarResult.value) {
-                bcvInput.value = dolarResult.value;
-                localStorage.setItem('bcvRate', dolarResult.value);
+            if (data.bcv) {
+                bcvInput.value = data.bcv;
+                localStorage.setItem('bcvRate', data.bcv);
             }
-
-            if (binanceResult.status === 'fulfilled') {
-                p2pInput.value = binanceResult.value;
-                localStorage.setItem('p2pRate', binanceResult.value);
-                if (p2pSourceTag) p2pSourceTag.textContent = '· Binance ≤100 USDT';
-            } else {
-                // Si Binance falla, mantener el valor cacheado sin sobreescribir
-                console.warn('Binance P2P no disponible, usando tasa guardada.');
-                if (p2pSourceTag && p2pInput.value) p2pSourceTag.textContent = '· caché';
-                if (isManual) alert('No se pudo obtener la tasa de Binance. Revisa tu conexión.');
+            if (data.p2p) {
+                p2pInput.value = data.p2p;
+                localStorage.setItem('p2pRate', data.p2p);
+                if (p2pSourceTag) {
+                    const when = data.updated ? timeAgo(data.updated) : '';
+                    p2pSourceTag.textContent = `· Binance ${when}`;
+                }
             }
-
             calculate();
         } catch (error) {
-            console.error('Error al descargar tasas:', error);
+            console.error('Error al cargar tasas:', error);
+            if (isManual) alert('No se pudo actualizar. Revisa tu conexión.');
         } finally {
             icon.name = 'sync';
             fetchRatesBtn.style.animation = 'none';
@@ -141,15 +82,8 @@ document.addEventListener('DOMContentLoaded', () => {
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             mode = tab.dataset.type;
-
-            if (mode === 'usd-to-ves') {
-                amountLabel.textContent = 'Monto en Dólares (USD)';
-                amountSymbol.textContent = '$';
-            } else {
-                amountLabel.textContent = 'Monto en Bolívares (VES)';
-                amountSymbol.textContent = 'Bs.';
-            }
-
+            amountLabel.textContent = mode === 'usd-to-ves' ? 'Monto en Dólares (USD)' : 'Monto en Bolívares (VES)';
+            amountSymbol.textContent = mode === 'usd-to-ves' ? '$' : 'Bs.';
             calculate();
         });
     });

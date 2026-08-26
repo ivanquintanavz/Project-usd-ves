@@ -1,0 +1,71 @@
+name: Update Rates
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # cada hora en punto
+  workflow_dispatch:       # también se puede lanzar manualmente
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch Binance P2P y BCV
+        run: |
+          curl -s -X POST "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search" \
+            -H "Content-Type: application/json" \
+            -H "User-Agent: Mozilla/5.0" \
+            -d '{"fiat":"VES","page":1,"rows":50,"tradeType":"SELL","asset":"USDT","countries":[],"proMerchantAds":false,"filterType":"all","periods":[],"additionalKycVerifyFilter":0,"publisherType":null,"payTypes":[],"classifies":["mass","profession","fiat_merchant"]}' \
+            -o /tmp/binance.json
+
+          curl -s "https://ve.dolarapi.com/v1/dolares" -o /tmp/bcv.json
+
+      - name: Calcular mediana y guardar rates.json
+        run: |
+          python3 << 'EOF'
+          import json, statistics
+          from datetime import datetime, timezone
+
+          with open('/tmp/binance.json') as f:
+              binance_data = json.load(f)
+
+          with open('/tmp/bcv.json') as f:
+              bcv_data = json.load(f)
+
+          # P2P: mediana de anuncios con minimo <= 100 USDT
+          ads = binance_data.get('data') or []
+          small = [
+              float(ad['adv']['price']) for ad in ads
+              if float(ad['adv']['minSingleTransAmount']) / float(ad['adv']['price']) <= 100
+          ]
+          pool = small if len(small) >= 5 else [float(ad['adv']['price']) for ad in ads]
+          p2p = round(statistics.median(pool), 2) if pool else None
+
+          # BCV oficial
+          bcv_entry = next((d for d in bcv_data if d.get('fuente') == 'oficial'), None)
+          bcv = round(bcv_entry['promedio'], 4) if bcv_entry else None
+
+          rates = {
+              "bcv": bcv,
+              "p2p": p2p,
+              "source": "Binance P2P mediana",
+              "updated": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+          }
+
+          print(f"BCV: {bcv}  |  P2P mediana: {p2p}  |  anuncios pequeños: {len(small)}/{len(ads)}")
+
+          with open('rates.json', 'w') as f:
+              json.dump(rates, f, indent=2)
+          EOF
+
+      - name: Commit y push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add rates.json
+          git diff --staged --quiet || git commit -m "chore: tasas $(date -u +%H:%M\ %d/%m/%Y)"
+          git push
