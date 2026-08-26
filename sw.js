@@ -1,4 +1,4 @@
-const CACHE_NAME = 'calcdivisas-v2';
+const CACHE_NAME = 'calcdivisas-v3';
 const urlsToCache = [
     './',
     './index.html',
