@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : sorted[mid];
     }
 
-    // Obtiene la mediana del P2P de Binance (anuncios de venta USDT/VES)
+    // Obtiene la mediana del P2P de Binance filtrando anuncios accesibles para montos pequeños (≤100 USDT)
     async function fetchBinanceP2P() {
         const targetUrl = 'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search';
         const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const body = JSON.stringify({
             fiat: 'VES',
             page: 1,
-            rows: 20,
+            rows: 50,
             tradeType: 'SELL',
             asset: 'USDT',
             countries: [],
@@ -78,20 +78,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await response.json();
         if (!data.data || data.data.length === 0) throw new Error('Sin datos Binance P2P');
 
-        const prices = data.data.map(ad => parseFloat(ad.adv.price));
+        // Filtrar solo anuncios donde el mínimo de orden sea ≤100 USDT
+        // minSingleTransAmount está en VES, así que dividimos por el precio para obtener USDT
+        const smallAds = data.data.filter(ad => {
+            const price = parseFloat(ad.adv.price);
+            const minVES = parseFloat(ad.adv.minSingleTransAmount);
+            const minUSDT = minVES / price;
+            return minUSDT <= 100;
+        });
+
+        const pool = smallAds.length >= 5 ? smallAds : data.data;
+        const prices = pool.map(ad => parseFloat(ad.adv.price));
         return Math.round(median(prices) * 100) / 100;
     }
 
-    // Obtiene BCV y paralelo desde DolarAPI (fuente de respaldo para P2P)
+    // Obtiene solo el BCV desde DolarAPI
     async function fetchDolarAPI() {
         const response = await fetch('https://ve.dolarapi.com/v1/dolares');
         const data = await response.json();
         const bcvData = data.find(d => d.fuente === 'oficial');
-        const p2pData = data.find(d => d.fuente === 'paralelo');
-        return {
-            bcv: bcvData?.promedio ?? null,
-            p2p: p2pData?.promedio ?? null
-        };
+        return bcvData?.promedio ?? null;
     }
 
     async function fetchRates(isManual = false) {
@@ -105,27 +111,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchBinanceP2P()
             ]);
 
-            if (dolarResult.status === 'fulfilled' && dolarResult.value.bcv) {
-                bcvInput.value = dolarResult.value.bcv;
-                localStorage.setItem('bcvRate', dolarResult.value.bcv);
+            if (dolarResult.status === 'fulfilled' && dolarResult.value) {
+                bcvInput.value = dolarResult.value;
+                localStorage.setItem('bcvRate', dolarResult.value);
             }
 
             if (binanceResult.status === 'fulfilled') {
                 p2pInput.value = binanceResult.value;
                 localStorage.setItem('p2pRate', binanceResult.value);
-                if (p2pSourceTag) p2pSourceTag.textContent = '· Binance mediana';
-            } else if (dolarResult.status === 'fulfilled' && dolarResult.value.p2p) {
-                p2pInput.value = dolarResult.value.p2p;
-                localStorage.setItem('p2pRate', dolarResult.value.p2p);
-                if (p2pSourceTag) p2pSourceTag.textContent = '· DolarAPI';
+                if (p2pSourceTag) p2pSourceTag.textContent = '· Binance ≤100 USDT';
+            } else {
+                // Si Binance falla, mantener el valor cacheado sin sobreescribir
+                console.warn('Binance P2P no disponible, usando tasa guardada.');
+                if (p2pSourceTag && p2pInput.value) p2pSourceTag.textContent = '· caché';
+                if (isManual) alert('No se pudo obtener la tasa de Binance. Revisa tu conexión.');
             }
 
             calculate();
         } catch (error) {
             console.error('Error al descargar tasas:', error);
-            if (isManual) {
-                alert('Hubo un error al descargar las tasas. Revisa tu conexión a internet.');
-            }
         } finally {
             icon.name = 'sync';
             fetchRatesBtn.style.animation = 'none';
