@@ -66,10 +66,17 @@
                     </div>
                 </div>
                 <div class="input-group mt-15">
-                    <label for="p2p-rate">Tasa P2P/Paralelo (Bs. por $) <span id="p2p-source" class="source-tag"></span></label>
+                    <label for="p2p-rate">Tasa P2P/Paralelo (Bs. por $)</label>
                     <div class="input-wrapper">
                         <span class="currency-symbol">Bs.</span>
                         <input type="number" id="p2p-rate" placeholder="Ej: 40.00" step="0.01" inputmode="decimal">
+                    </div>
+                </div>
+                <div class="input-group mt-15">
+                    <label for="eur-rate">Tasa BCV Euro (Bs. por €)</label>
+                    <div class="input-wrapper">
+                        <span class="currency-symbol">€</span>
+                        <input type="number" id="eur-rate" placeholder="Ej: 870.00" step="0.01" inputmode="decimal">
                     </div>
                 </div>
             </section>
@@ -77,8 +84,10 @@
             <!-- Calculator Section -->
             <section class="card calculator-card">
                 <div class="tabs">
-                    <button class="tab-btn active" data-type="usd-to-ves">USD a VES</button>
-                    <button class="tab-btn" data-type="ves-to-usd">VES a USD</button>
+                    <button class="tab-btn active" data-type="usd-to-ves">$ → Bs</button>
+                    <button class="tab-btn" data-type="ves-to-usd">Bs → $</button>
+                    <button class="tab-btn" data-type="eur-to-ves">€ → Bs</button>
+                    <button class="tab-btn" data-type="ves-to-eur">Bs → €</button>
                 </div>
 
                 <div class="input-group amount-group">
