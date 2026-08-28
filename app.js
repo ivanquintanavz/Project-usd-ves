@@ -36,18 +36,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    const WORKER_URL = 'https://binance-p2p-ves.ivanquintanavz.workers.dev';
-    const DOLAR_API = 'https://ve.dolarapi.com/v1/dolares';
-
     async function fetchRates(isManual = false) {
         const icon = fetchRatesBtn.querySelector('ion-icon');
         icon.name = 'sync-circle';
         fetchRatesBtn.style.animation = 'pulse 1s infinite';
 
         try {
-            const [dolarResult, workerResult] = await Promise.allSettled([
-                fetch(DOLAR_API).then(r => r.json()),
-                fetch(WORKER_URL).then(r => r.json())
+            const [dolarResult, p2pResult] = await Promise.allSettled([
+                fetch('https://ve.dolarapi.com/v1/dolares').then(r => r.json()),
+                fetch('/api/binance-rate').then(r => r.json())
             ]);
 
             if (dolarResult.status === 'fulfilled') {
@@ -58,11 +55,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if (workerResult.status === 'fulfilled' && workerResult.value.p2p) {
-                p2pInput.value = workerResult.value.p2p;
-                localStorage.setItem('p2pRate', workerResult.value.p2p);
+            if (p2pResult.status === 'fulfilled' && p2pResult.value.p2p) {
+                p2pInput.value = p2pResult.value.p2p;
+                localStorage.setItem('p2pRate', p2pResult.value.p2p);
                 if (p2pSourceTag) p2pSourceTag.textContent = '· Binance en vivo';
             } else {
+                console.warn('P2P no disponible:', p2pResult.reason || p2pResult.value);
                 if (isManual) alert('No se pudo obtener la tasa de Binance. Revisa tu conexión.');
             }
 
