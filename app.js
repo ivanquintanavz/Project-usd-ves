@@ -36,13 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function timeAgo(isoString) {
-        const diffMs = Date.now() - new Date(isoString).getTime();
-        const mins = Math.round(diffMs / 60000);
-        if (mins < 60) return `hace ${mins} min`;
-        const hrs = Math.round(diffMs / 3600000);
-        return `hace ${hrs}h`;
-    }
+    const WORKER_URL = 'https://binance-p2p-ves.ivanquintanavz.workers.dev';
+    const DOLAR_API = 'https://ve.dolarapi.com/v1/dolares';
 
     async function fetchRates(isManual = false) {
         const icon = fetchRatesBtn.querySelector('ion-icon');
@@ -50,27 +45,30 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchRatesBtn.style.animation = 'pulse 1s infinite';
 
         try {
-            // rates.json lo actualiza GitHub Actions cada hora desde Binance P2P
-            const response = await fetch('./rates.json?t=' + Date.now());
-            if (!response.ok) throw new Error('rates.json no disponible');
-            const data = await response.json();
+            const [dolarResult, workerResult] = await Promise.allSettled([
+                fetch(DOLAR_API).then(r => r.json()),
+                fetch(WORKER_URL).then(r => r.json())
+            ]);
 
-            if (data.bcv) {
-                bcvInput.value = data.bcv;
-                localStorage.setItem('bcvRate', data.bcv);
-            }
-            if (data.p2p) {
-                p2pInput.value = data.p2p;
-                localStorage.setItem('p2pRate', data.p2p);
-                if (p2pSourceTag) {
-                    const when = data.updated ? timeAgo(data.updated) : '';
-                    p2pSourceTag.textContent = `· Binance ${when}`;
+            if (dolarResult.status === 'fulfilled') {
+                const bcvEntry = dolarResult.value.find(d => d.fuente === 'oficial');
+                if (bcvEntry?.promedio) {
+                    bcvInput.value = bcvEntry.promedio;
+                    localStorage.setItem('bcvRate', bcvEntry.promedio);
                 }
             }
+
+            if (workerResult.status === 'fulfilled' && workerResult.value.p2p) {
+                p2pInput.value = workerResult.value.p2p;
+                localStorage.setItem('p2pRate', workerResult.value.p2p);
+                if (p2pSourceTag) p2pSourceTag.textContent = '· Binance en vivo';
+            } else {
+                if (isManual) alert('No se pudo obtener la tasa de Binance. Revisa tu conexión.');
+            }
+
             calculate();
         } catch (error) {
             console.error('Error al cargar tasas:', error);
-            if (isManual) alert('No se pudo actualizar. Revisa tu conexión.');
         } finally {
             icon.name = 'sync';
             fetchRatesBtn.style.animation = 'none';
